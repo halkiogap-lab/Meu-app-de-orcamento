@@ -3,118 +3,150 @@ from datetime import datetime
 from fpdf import FPDF
 import math
 
-st.set_page_config(page_title="Gestão de Obras", layout="wide")
+# --- CONFIGURAÇÃO DE ALTA PERFORMANCE ---
+st.set_page_config(page_title="PRO-OBRA | Gestão de Elite", layout="wide", initial_sidebar_state="expanded")
 
 def moeda(v):
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- BANCO DE SERVIÇOS COMPLETO ---
-DB = {
-    "ESTRUTURA": {
-        "Sapata / Fundação": {"un": "un", "p": 250.0},
-        "Vigamento / Colunas": {"un": "m", "p": 150.0},
-        "Laje (Batida)": {"un": "m²", "p": 95.0},
-        "Escada em Metalon": {"un": "un", "p": 1200.0},
-        "Alvenaria": {"un": "m²", "p": 60.0},
+# --- BANCO DE DADOS ESTRUTURADO (TODA A OBRA) ---
+DB_MESTRE = {
+    "🏗️ INFRAESTRUTURA & ALVENARIA": {
+        "Sapata / Fundação (Mão de obra)": {"un": "un", "p": 280.0},
+        "Vigamento / Colunas": {"un": "m", "p": 165.0},
+        "Alvenaria (Tijolo à vista/Bloco)": {"un": "m²", "p": 65.0},
+        "Laje (Montagem e Concretagem)": {"un": "m²", "p": 110.0},
+        "Contra-piso técnico": {"un": "m²", "p": 38.0},
+        "Reboco Interno/Externo": {"un": "m²", "p": 45.0},
     },
-    "ACABAMENTO": {
-        "Reboco": {"un": "m²", "p": 40.0},
-        "Piso Cerâmico": {"un": "m²", "p": 50.0},
-        "Porcelanato": {"un": "m²", "p": 85.0},
-        "Bancada Porcelanato": {"un": "m", "p": 450.0},
-        "Rodapé": {"un": "m", "p": 15.0},
+    "💎 ACABAMENTO DE ALTO PADRÃO": {
+        "Porcelanato Grande Formato": {"un": "m²", "p": 95.0},
+        "Piso Cerâmico Padrão": {"un": "m²", "p": 55.0},
+        "Revestimento de Parede (Cozinha/Banho)": {"un": "m²", "p": 70.0},
+        "Bancada Esculpida em Porcelanato": {"un": "m", "p": 480.0},
+        "Instalação de Rodapé Embutido": {"un": "m", "p": 25.0},
+        "Escada (Revestimento em Porcelanato)": {"un": "degrau", "p": 120.0},
     },
-    "HIDRÁULICA/DESENTUPIDORA": {
-        "Desentupimento Vaso": {"un": "un", "p": 280.0},
-        "Desentupimento Esgoto": {"un": "m", "p": 130.0},
-        "Limpeza Caixa Gordura": {"un": "un", "p": 220.0},
-        "Ponto Hidráulico": {"un": "ponto", "p": 150.0},
+    "🔧 HIDRÁULICA & DESENTUPIDORA": {
+        "Desentupimento Vaso (Máquina K50)": {"un": "un", "p": 300.0},
+        "Desentupimento Rede de Esgoto": {"un": "m", "p": 140.0},
+        "Limpeza de Caixa de Gordura": {"un": "un", "p": 250.0},
+        "Instalação de Vaso / Torneira": {"un": "un", "p": 120.0},
+        "Ponto de Água/Esgoto (Instalação)": {"un": "ponto", "p": 180.0},
     },
-    "COBERTURA/PINTURA": {
-        "Telhado Zinco": {"un": "m²", "p": 190.0},
-        "Calhas": {"un": "m", "p": 50.0},
-        "Pintura Simples": {"un": "m²", "p": 35.0},
-        "Pintura com Massa": {"un": "m²", "p": 70.0},
+    "🎨 PINTURA & TELHADO": {
+        "Pintura Massa Corrida + Lixamento": {"un": "m²", "p": 75.0},
+        "Pintura Simples (Látex/Acrílica)": {"un": "m²", "p": 40.0},
+        "Textura / Grafiato": {"un": "m²", "p": 50.0},
+        "Telhado Zinco / Sanduíche": {"un": "m²", "p": 210.0},
+        "Impermeabilização de Calhas": {"un": "m", "p": 60.0},
     }
 }
 
-st.title("🏗️ Painel Corporativo de Engenharia")
+st.sidebar.title("🛠️ PAINEL DE CONTROLE")
+margem_lucro = st.sidebar.slider("Margem de Lucro Bruta (%)", 0, 150, 35)
+custo_combustivel = st.sidebar.number_input("Custo Logístico (R$/KM)", value=3.50)
+produtividade = st.sidebar.number_input("Meta de Produção (m²/dia)", value=8.0)
 
-t1, t2, t3 = st.tabs(["📊 MONITOR DO PATRÃO", "📝 GERADOR", "⚙️ AJUSTE"])
+st.title("🚀 Sistema Integrado de Orçamentos Profissionais")
 
-with t3:
-    margem = st.slider("Margem de Lucro (%)", 0, 150, 30)
-    c_km = st.number_input("R$ por KM", value=3.20)
-    rendimento = st.number_input("Rendimento (m²/dia)", value=10.0)
+aba1, aba2 = st.tabs(["📝 NOVO ORÇAMENTO", "📊 ANÁLISE DO PATRÃO"])
 
-with t2:
-    col_a, col_b = st.columns(2)
-    cli = col_a.text_input("Cliente")
-    end = col_b.text_input("Local")
-    dist = st.number_input("Distância (KM)", min_value=0.0)
+with aba1:
+    col_cli, col_loc = st.columns(2)
+    cliente = col_cli.text_input("Nome do Cliente / Obra")
+    local = col_loc.text_input("Localização do Serviço")
+    distancia = st.number_input("Distância para Deslocamento (KM Total)", min_value=0.0)
 
     selecionados = []
-    total_base = 0.0
-    total_m2 = 0.0
+    total_mao_obra = 0.0
+    total_area_m2 = 0.0
 
     idx = 0
-    for cat, servs in DB.items():
-        with st.expander(f"📂 {cat}"):
-            for s, info in servs.items():
-                st.write(f"**{s}**") # NOME DO SERVIÇO VISÍVEL
-                c1, c2 = st.columns(2)
-                qtd = c1.number_input(f"Qtd ({info['un']})", min_value=0.0, key=f"q{idx}")
-                prc = c2.number_input(f"Preço Base", value=float(info['p']), key=f"p{idx}")
+    for categoria, servicos in DB_MESTRE.items():
+        with st.expander(f"{categoria}"):
+            for s_nome, s_info in servicos.items():
+                st.markdown(f"**{s_nome}**") # Nome visível
+                c_qtd, c_val = st.columns([1, 1])
+                qtd = c_qtd.number_input(f"Quantidade ({s_info['un']})", min_value=0.0, key=f"q_{idx}")
+                val_unit = c_val.number_input(f"Valor Base Unitário (R$)", value=float(s_info['p']), key=f"p_{idx}")
+                
                 if qtd > 0:
-                    total_base += (qtd * prc)
-                    if info['un'] == "m²": total_m2 += qtd
-                    selecionados.append({"n": s, "q": qtd, "u": info['un'], "p": prc})
+                    subtotal = qtd * val_unit
+                    total_mao_obra += subtotal
+                    if s_info['un'] == "m²": total_area_m2 += qtd
+                    selecionados.append({"nome": s_nome, "qtd": qtd, "un": s_info['un'], "p_unit": val_unit})
                 idx += 1
 
-with t1:
+with aba2:
     if not selecionados:
-        st.info("Selecione os serviços no Gerador.")
+        st.warning("Adicione serviços na aba 'GERADOR' para ver a análise.")
     else:
-        custo_log = dist * c_km
-        v_final = (total_base + custo_log) * (1 + margem/100)
-        fator = v_final / total_base if total_base > 0 else 1
-        dias = math.ceil(total_m2 / rendimento) if total_m2 > 0 else 1
+        # CÁLCULOS TÉCNICOS
+        custo_viagem = distancia * custo_combustivel
+        preco_venda_total = (total_mao_obra + custo_viagem) * (1 + margem_lucro/100)
+        fator_venda = preco_venda_total / total_mao_obra if total_mao_obra > 0 else 1
+        prazo_obra = math.ceil(total_area_m2 / produtividade) if total_area_m2 > 0 else 1
+        lucro_liquido = preco_venda_total - total_mao_obra - custo_viagem
 
-        st.metric("Total p/ Cliente", moeda(v_final))
-        st.metric("Seu Lucro Real", moeda(v_final - total_base - custo_log))
-        
-        nota = "⚠️ *Nota técnica: Os valores apresentados compreendem exclusivamente a prestação de serviços de mão de obra especializada e a utilização de maquinário próprio (ferramentas e EPIs). O fornecimento de todo e qualquer material necessário para a execução integral do projeto é de responsabilidade exclusiva do contratante.*"
-        
-        resumo = f"🏠 *PROPOSTA - {cli.upper()}*\n📍 *LOCAL:* {end}\n" + "─"*15 + "\n"
-        for i in selecionados:
-            resumo += f"✅ *{i['n']}*: {i['q']} {i['u']} | Total: {moeda(i['q'] * i['p'] * fator)}\n"
-        resumo += "─"*15 + f"\n⏱️ *PRAZO:* {dias} dias úteis\n💰 *TOTAL: {moeda(v_final)}*\n\n{nota}"
-        
-        st.text_area("WhatsApp", resumo, height=250)
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Valor p/ Cliente", moeda(preco_venda_total))
+        col_m2.metric("Seu Lucro Real", moeda(lucro_liquido))
+        col_m3.metric("Prazo Estimado", f"{prazo_obra} dias")
 
-        # GERAÇÃO DE PDF CORRIGIDA
-        if st.button("📥 Gerar PDF"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 16)
-            pdf.cell(190, 10, "PROPOSTA DE SERVICOS", 0, 1, "C")
-            pdf.ln(10)
-            pdf.set_font("Arial", "", 11)
-            pdf.cell(190, 7, f"CLIENTE: {cli.upper()}", 0, 1)
-            pdf.cell(190, 7, f"LOCAL: {end}", 0, 1)
-            pdf.ln(5)
-            for i in selecionados:
-                pdf.cell(190, 7, f"- {i['n']} ({i['q']} {i['u']}): {moeda(i['q'] * i['p'] * fator)}", 0, 1)
-            pdf.ln(5)
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(190, 10, f"VALOR TOTAL: {moeda(v_final)}", 0, 1, "R")
-            pdf.ln(10)
-            pdf.set_font("Arial", "B", 10)
-            pdf.cell(190, 7, "NOTA TECNICA:", 0, 1)
-            pdf.set_font("Arial", "", 9)
-            nota_pdf = nota.replace("⚠️ ", "").replace("*", "")
-            pdf.multi_cell(190, 5, nota_pdf)
-            
-            # O SEGREDO DO DOWNLOAD SEM ERRO:
-            pdf_bytes = pdf.output(dest='S').encode('latin-1')
-            st.download_button(label="Clique para baixar", data=pdf_bytes, file_name=f"orcamento_{cli}.pdf", mime="application/pdf")
+        st.divider()
+        
+        # VISUALIZAÇÃO PARA WHATSAPP
+        nota_oficial = "⚠️ *Nota: Valores incluem mão de obra especializada e ferramentas. Materiais de construção por conta do contratante.*"
+        
+        zap_msg = f"🏛️ *PROPOSTA TÉCNICA - {cliente.upper()}*\n📍 *OBRA:* {local}\n" + "─"*15 + "\n"
+        for item in selecionados:
+            v_item = (item['qtd'] * item['p_unit']) * fator_venda
+            zap_msg += f"🔹 *{item['nome']}*: {item['qtd']} {item['un']} | {moeda(v_item)}\n"
+        
+        zap_msg += "─"*15 + f"\n⏱️ *PRAZO:* {prazo_obra} dias úteis\n💰 *INVESTIMENTO:* {moeda(preco_venda_total)}\n\n{nota_oficial}"
+        
+        st.subheader("Visualização para o Cliente")
+        st.text_area("Copia pro WhatsApp", zap_msg, height=300)
+
+        # GERAÇÃO DE PDF PROFISSIONAL (CORRIGIDO)
+        if st.button("📄 Gerar Orçamento Oficial (PDF)"):
+            try:
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", "B", 16)
+                pdf.cell(190, 15, "ORCAMENTO DE SERVICOS DE ENGENHARIA", 0, 1, "C")
+                pdf.ln(5)
+                
+                pdf.set_font("Arial", "", 11)
+                pdf.cell(190, 8, f"CLIENTE: {cliente.upper()}", 0, 1)
+                pdf.cell(190, 8, f"LOCAL DA OBRA: {local}", 0, 1)
+                pdf.cell(190, 8, f"DATA DE EMISSAO: {datetime.now().strftime('%d/%m/%Y')}", 0, 1)
+                pdf.ln(10)
+                
+                # Cabeçalho da Tabela
+                pdf.set_fill_color(240, 240, 240)
+                pdf.set_font("Arial", "B", 10)
+                pdf.cell(100, 10, " DESCRICAO DO SERVICO", 1, 0, "L", True)
+                pdf.cell(30, 10, " QUANT.", 1, 0, "C", True)
+                pdf.cell(60, 10, " TOTAL", 1, 1, "C", True)
+                
+                pdf.set_font("Arial", "", 10)
+                for item in selecionados:
+                    v_item = (item['qtd'] * item['p_unit']) * fator_venda
+                    pdf.cell(100, 8, f" {item['nome']}", 1)
+                    pdf.cell(30, 8, f" {item['qtd']} {item['un']}", 1, 0, "C")
+                    pdf.cell(60, 8, f" {moeda(v_item)}", 1, 1, "R")
+                
+                pdf.ln(10)
+                pdf.set_font("Arial", "B", 12)
+                pdf.cell(190, 10, f"VALOR TOTAL DO INVESTIMENTO: {moeda(preco_venda_total)}", 0, 1, "R")
+                pdf.ln(5)
+                pdf.set_font("Arial", "I", 10)
+                pdf.multi_cell(190, 6, nota_oficial.replace("*", "").replace("⚠️ ", ""))
+                
+                # DOWNLOAD SEGURO
+                pdf_bytes = pdf.output(dest='S').encode('latin-1', 'ignore')
+                st.download_button(label="📥 Baixar Orçamento PDF", data=pdf_bytes, file_name=f"Orcamento_{cliente}.pdf", mime="application/pdf")
+            except Exception as e:
+                st.error(f"Erro ao gerar documento: {e}")
