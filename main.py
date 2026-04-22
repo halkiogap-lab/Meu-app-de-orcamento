@@ -7,7 +7,7 @@ st.set_page_config(page_title="Orçamento de Obras", page_icon="🏗️", layout
 st.title("🏗️ Orçamento de Obras")
 st.caption("Calcule o orçamento da sua obra e gere um resumo pronto para o WhatsApp.")
 
-# Sua lista completa de serviços (SEM CORTES)
+# Lista de serviços completa e original
 SERVICOS = {
     "Alvenaria": {"unidade": "m²", "preco_medio_es": 55.00, "materiais": [("Tijolos", 25, "un"), ("Cimento", 0.35, "saco"), ("Areia", 0.05, "m³")]},
     "Reboco": {"unidade": "m²", "preco_medio_es": 35.00, "materiais": [("Cimento", 0.20, "saco"), ("Areia", 0.03, "m³")]},
@@ -35,51 +35,83 @@ SERVICOS = {
     "Instalação de forro de gesso": {"unidade": "m²", "preco_medio_es": 55.00, "materiais": [("Placa gesso", 1.10, "m²")]},
     "Colocação de pia de mármore": {"unidade": "un", "preco_medio_es": 250.00, "materiais": [("Silicone", 1.0, "un")]},
     "Colocação de pia de fibra": {"unidade": "un", "preco_medio_es": 150.00, "materiais": [("Sifão", 1.0, "un")]},
-    "Colocação de box de banheiro": {"unidade": "un", "preco_medio_es": 180.00, "materiais": [("Silicone", 1.0, "un")]}
+    "Colocação de box de banheiro": {"unidade": "un", "preco_medio_es": 180.00, "materiais": [("Silicone", 1.0, "un")]},
 }
 
-# Funções de ajuda
-def moeda(v): return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+def moeda(v):
+    return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# Lógica da Barra Lateral
+# BARRA LATERAL
 with st.sidebar:
-    st.header("Dados do Cliente")
-    nome_c = st.text_input("Nome")
-    obra_c = st.text_input("Obra")
-    dist = st.number_input("Distância (KM)", min_value=0.0)
-    valor_viagem = dist * 2.50
-    st.metric("Deslocamento", moeda(valor_viagem))
-
-# Lógica dos Serviços
-st.subheader("Serviços Executados")
-selecionados = []
-total_serv = 0.0
-
-# O segredo está no 'key' único dentro do loop
-for s_nome, s_info in SERVICOS.items():
-    with st.expander(f"➕ {s_nome}"):
-        col1, col2 = st.columns(2)
-        # Chaves dinâmicas para o Streamlit não bugar (ex: q_Alvenaria)
-        qtd = col1.number_input(f"Quantidade ({s_info['unidade']})", min_value=0.0, key=f"q_{s_nome}")
-        prc = col2.number_input(f"Preço Unitário (R$)", value=float(s_info['preco_medio_es']), key=f"p_{s_nome}")
-        
-        if qtd > 0:
-            sub = qtd * prc
-            total_serv += sub
-            selecionados.append({"nome": s_nome, "q": qtd, "un": s_info['unidade'], "p": prc, "t": sub})
-
-# Totais
-total_geral = total_serv + valor_viagem
-st.divider()
-st.subheader(f"Total Geral: {moeda(total_geral)}")
-
-# Gerador de Texto para WhatsApp
-if selecionados:
-    resumo = f"*ORÇAMENTO: {nome_c.upper() or 'CLIENTE'}*\n📍 {obra_c or 'Obra'}\n"
-    resumo += f"📅 {datetime.now().strftime('%d/%m/%Y')}\n\n"
-    for item in selecionados:
-        resumo += f"✅ *{item['nome']}*: {item['q']} {item['un']} x {moeda(item['p'])} = *{moeda(item['t'])}*\n"
-    resumo += f"\n🚚 Deslocamento: {moeda(valor_viagem)}"
-    resumo += f"\n💰 *TOTAL: {moeda(total_geral)}*"
+    st.header("📋 Dados do Cliente")
+    nome_c = st.text_input("Nome do Cliente", key="nome_cliente")
+    obra_c = st.text_input("Endereço da Obra", key="endereco_obra")
     
-    st.text_area("Copie para o WhatsApp:", value=resumo, height=300)
+    st.divider()
+    st.header("🚚 Deslocamento")
+    # Agora você pode definir a distância e o valor do KM
+    km_total = st.number_input("Distância Total (KM)", min_value=0.0, step=1.0, key="km_input")
+    valor_por_km = st.number_input("Valor por KM (R$)", min_value=0.0, value=2.50, step=0.10, key="val_km_input")
+    
+    custo_viagem = km_total * valor_por_km
+    st.metric("Total Deslocamento", moeda(custo_viagem))
+
+# ÁREA PRINCIPAL
+st.subheader("🛠️ Seleção de Serviços")
+selecionados = []
+total_mo = 0.0
+
+for s_nome, s_info in SERVICOS.items():
+    with st.expander(f"➕ {s_nome} ({s_info['unidade']})"):
+        col1, col2 = st.columns(2)
+        q = col1.number_input(f"Qtd", min_value=0.0, key=f"q_{s_nome}")
+        p = col2.number_input(f"Preço (R$)", value=float(s_info['preco_medio_es']), key=f"p_{s_nome}")
+        
+        if q > 0:
+            subtotal = q * p
+            total_mo += subtotal
+            
+            # Cálculo de materiais
+            mats_lista = []
+            for m_n, m_f, m_u in s_info['materiais']:
+                mats_lista.append(f"{m_n}: {(q * m_f):.2f} {m_u}")
+            
+            selecionados.append({
+                "nome": s_nome,
+                "qtd": q,
+                "un": s_info['unidade'],
+                "preco": p,
+                "total": subtotal,
+                "materiais": mats_lista
+            })
+
+# RESUMO FINANCEIRO
+st.divider()
+total_geral = total_mo + custo_viagem
+
+c1, c2, c3 = st.columns(3)
+c1.metric("Mão de Obra", moeda(total_mo))
+c2.metric("Viagem", moeda(custo_viagem))
+c3.metric("TOTAL GERAL", moeda(total_geral))
+
+# TEXTO WHATSAPP
+if selecionados:
+    st.subheader("📱 Resumo para WhatsApp")
+    texto = f"*ORÇAMENTO: {nome_c.upper() or 'CLIENTE'}*\n"
+    texto += f"📍 Obra: {obra_c or 'Não informada'}\n"
+    texto += f"📅 Data: {datetime.now().strftime('%d/%m/%Y')}\n"
+    texto += "\n" + "-"*20 + "\n"
+    
+    for r in selecionados:
+        texto += f"✅ *{r['nome']}*\n"
+        texto += f"Qtd: {r['qtd']} {r['un']} | Total: {moeda(r['total'])}\n"
+        if r['materiais']:
+            texto += "_Material sugerido: " + ", ".join(r['materiais']) + "_\n\n"
+    
+    texto += "-"*20 + "\n"
+    if custo_viagem > 0:
+        texto += f"🚚 Deslocamento: {moeda(custo_viagem)}\n"
+    texto += f"💰 *TOTAL DO ORÇAMENTO: {moeda(total_geral)}*"
+    texto += "\n\n_Obs: Mão de obra. Material por conta do cliente._"
+    
+    st.text_area("Selecione e copie:", value=texto, height=400)
