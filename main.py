@@ -2,38 +2,156 @@ import streamlit as st
 from datetime import datetime, timedelta
 from fpdf import FPDF
 import math
-import pandas as pd
 
-# Configuração de Alta Performance
-st.set_page_config(page_title="ERP - Gestão de Obras & Manutenção", layout="wide", initial_sidebar_state="expanded")
+# --- CONFIGURAÇÃO DE ALTA PERFORMANCE ---
+st.set_page_config(page_title="OT Construções | ERP", layout="wide", initial_sidebar_state="expanded")
 
-# --- FUNÇÕES DE UTILITÁRIO ---
+# Estilização Premium Dark
+st.markdown("""
+    <style>
+    .stApp { background-color: #0E1117; color: #FFFFFF; }
+    [data-testid="stMetricValue"] { color: #00FFCC; font-weight: bold; }
+    .stTabs [data-baseweb="tab-list"] { gap: 20px; }
+    .stTabs [data-baseweb="tab"] { height: 50px; background-color: #1E1E1E; border-radius: 5px; color: white; }
+    .stExpander { background-color: #161B22; border: 1px solid #30363D; }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- UTILITÁRIOS ---
 def moeda(v):
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- BANCO DE DADOS DE SERVIÇOS (TOTALMENTE COMPLETO) ---
+# --- BANCO DE PREÇOS (ALTO PADRÃO) ---
 DB_SERVICOS = {
-    "ESTRUTURA": {
-        "Sapata / Fundação": {"un": "un", "p": 250.0},
-        "Vigamento / Colunas": {"un": "m", "p": 150.0},
-        "Laje (Batida)": {"un": "m²", "p": 95.0},
-        "Escada em Metalon": {"un": "un", "p": 1200.0},
-        "Alvenaria (Tijolo/Bloco)": {"un": "m²", "p": 60.0},
-        "Contra-piso": {"un": "m²", "p": 35.0},
+    "FUNDAÇÃO & INFRA": {
+        "Locação e Gabarito": {"un": "m²", "p": 25.0},
+        "Escavação Manual": {"un": "m³", "p": 180.0},
+        "Viga Baldrame (Concretagem)": {"un": "m", "p": 120.0},
+        "Impermeabilização Sika": {"un": "m²", "p": 45.0},
     },
-    "ACABAMENTO FINO": {
-        "Reboco": {"un": "m²", "p": 40.0},
-        "Piso Cerâmico": {"un": "m²", "p": 50.0},
-        "Porcelanato (Chão/Parede)": {"un": "m²", "p": 85.0},
-        "Bancada em Porcelanato (Corte/Inst)": {"un": "m", "p": 450.0},
-        "Rejunte Epóxi/Comum": {"un": "m²", "p": 20.0},
-        "Gesso Liso / Forro PVC": {"un": "m²", "p": 55.0},
-        "Instalação de Rodapé": {"un": "m", "p": 15.0},
+    "ESTRUTURA & ALVENARIA": {
+        "Alvenaria de Vedação": {"un": "m²", "p": 65.0},
+        "Pilar / Viga (Mão de Obra)": {"un": "m", "p": 155.0},
+        "Laje Maciça (Montagem)": {"un": "m²", "p": 95.0},
+        "Escada Cascata (Estrutural)": {"un": "un", "p": 4500.0},
     },
-    "DESENTUPIDORA & HIDRÁULICA": {
-        "Desentupimento Vaso Sanitário": {"un": "un", "p": 280.0},
-        "Desentupimento Esgoto (Rede Principal)": {"un": "m", "p": 130.0},
-        "Desentupimento Pia / Ralo": {"un": "un", "p": 160.0},
+    "REVESTIMENTO & ACABAMENTO": {
+        "Reboco Técnico": {"un": "m²", "p": 45.0},
+        "Porcelanato Grande Formato": {"un": "m²", "p": 120.0},
+        "Bancada Esculpida": {"un": "m", "p": 650.0},
+        "Rodapé Embutido": {"un": "m", "p": 35.0},
+    },
+    "PINTURA & FINALIZAÇÃO": {
+        "Massa Corrida & Lixamento": {"un": "m²", "p": 40.0},
+        "Pintura Premium (Toque de Seda)": {"un": "m²", "p": 35.0},
+        "Limpeza Pós-Obra Técnica": {"un": "m²", "p": 25.0},
+    }
+}
+
+# --- INTERFACE PRINCIPAL ---
+st.title("🏗️ OT CONSTRUÇÕES - Intelligence ERP")
+
+tab1, tab2, tab3 = st.tabs(["📊 MONITOR DO PATRÃO", "📝 GERADOR DE ORÇAMENTO", "⚙️ TABELA DE PREÇOS"])
+
+# --- TABELA DE PREÇOS (CONFIGURAÇÃO) ---
+with tab3:
+    st.header("Configurações de Margem e Logística")
+    col_c1, col_c2 = st.columns(2)
+    with col_c1:
+        margem_global = st.slider("Margem de Lucro OT (%)", 0, 200, 40)
+        custo_km = st.number_input("Custo Logístico por KM (R$)", value=4.50)
+    with col_c2:
+        prod_diaria = st.number_input("Rendimento Equipe (m²/dia)", value=5.0)
+
+# --- GERADOR DE ORÇAMENTO ---
+with tab2:
+    st.header("Dados do Cliente")
+    c1, c2, c3 = st.columns([2, 2, 1])
+    nome_cliente = c1.text_input("Nome do Cliente", placeholder="Ex: Dr. Roberto Silva")
+    endereco = c2.text_input("Local da Obra")
+    distancia = c3.number_input("Distância (KM)", min_value=0.0)
+
+    st.subheader("Seleção de Serviços")
+    itens_selecionados = []
+    total_base_mao_obra = 0.0
+    total_m2_obra = 0.0
+
+    for cat, servs in DB_SERVICOS.items():
+        with st.expander(f"📂 {cat}"):
+            for s_nome, s_info in servs.items():
+                col_1, col_2, col_3 = st.columns([3, 1, 1])
+                col_1.write(f"**{s_nome}**")
+                qtd = col_2.number_input(f"Qtd ({s_info['un']})", min_value=0.0, key=f"q_{s_nome}")
+                # Preço base vem do DB mas pode ser editado
+                preco_base = col_3.number_input(f"Preço Unitário", value=s_info['p'], key=f"p_{s_nome}")
+                
+                if qtd > 0:
+                    total_base_mao_obra += (qtd * preco_base)
+                    if s_info['un'] == "m²": total_m2_obra += qtd
+                    itens_selecionados.append({"nome": s_nome, "qtd": qtd, "un": s_info['un'], "p_base": preco_base})
+
+# --- MONITOR DO PATRÃO ---
+with tab1:
+    if not itens_selecionados:
+        st.info("Aguardando seleção de itens no Gerador...")
+    else:
+        custo_logistica = distancia * custo_km
+        valor_final_cliente = (total_base_mao_obra + custo_logistica) * (1 + margem_global/100)
+        lucro_liquido = valor_final_cliente - total_base_mao_obra - custo_logistica
+        dias_obra = math.ceil(total_m2_obra / prod_diaria) if total_m2_obra > 0 else 7
+
+        st.subheader("Análise de Lucratividade")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("FATURAMENTO", moeda(valor_final_cliente))
+        m2.metric("LUCRO OT", moeda(lucro_liquido), f"{margem_global}%")
+        m3.metric("LOGÍSTICA", moeda(custo_logistica))
+        m4.metric("CRONOGRAMA", f"{dias_obra} DIAS")
+
+        st.divider()
+
+        # Fator de diluição: Transforma custos internos em preço de venda por item
+        fator = valor_final_cliente / total_base_mao_obra if total_base_mao_obra > 0 else 1
+        
+        # Formatação WhatsApp
+        zap_texto = f"🏗️ *PROPOSTA OT CONSTRUÇÕES*\n"
+        zap_texto += f"👤 *CLIENTE:* {nome_cliente.upper()}\n"
+        zap_texto += f"📍 *LOCAL:* {endereco}\n\n"
+        for item in itens_selecionados:
+            p_venda = item['p_base'] * fator
+            zap_texto += f"✅ *{item['nome']}*\n{item['qtd']} {item['un']} — {moeda(item['qtd']*p_venda)}\n\n"
+        zap_texto += f"⏱️ *PRAZO:* {dias_obra} dias úteis\n"
+        zap_texto += f"💰 *TOTAL:* {moeda(valor_final_cliente)}"
+        
+        st.text_area("Cópia para WhatsApp (Valores Diluídos)", value=zap_texto, height=300)
+
+        # Geração de PDF (Correção de Bug de Saída)
+        if st.button("📄 Exportar PDF Profissional"):
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", 'B', 16)
+            pdf.cell(190, 10, "OT CONSTRUCOES - ORCAMENTO", ln=True, align='C')
+            pdf.set_font("Arial", '', 10)
+            pdf.cell(190, 10, f"Cliente: {nome_cliente} | Data: {datetime.now().strftime('%d/%m/%Y')}", ln=True, align='C')
+            pdf.ln(10)
+            
+            pdf.set_fill_color(200, 200, 200)
+            pdf.cell(110, 10, " DESCRICAO", 1, 0, 'L', True)
+            pdf.cell(30, 10, " QTD", 1, 0, 'C', True)
+            pdf.cell(50, 10, " TOTAL", 1, 1, 'C', True)
+            
+            for item in itens_selecionados:
+                p_venda = item['p_base'] * fator
+                pdf.cell(110, 8, f" {item['nome']}", 1)
+                pdf.cell(30, 8, f" {item['qtd']} {item['un']}", 1, 0, 'C')
+                pdf.cell(50, 8, f" {moeda(item['qtd']*p_venda)}", 1, 1, 'R')
+            
+            pdf.ln(10)
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(190, 10, f"TOTAL: {moeda(valor_final_cliente)}", align='R')
+            
+            # Saída segura em bytes
+            pdf_bytes = pdf.output(dest='S').encode('latin-1')
+            st.download_button("Clique para Baixar", pdf_bytes, "Orcamento_OT.pdf", "application/pdf")
         "Limpeza de Caixa de Gordura": {"un": "un", "p": 220.0},
         "Limpeza de Caixa d'água": {"un": "un", "p": 300.0},
         "Hidrojateamento Técnico": {"un": "serv", "p": 500.0},
