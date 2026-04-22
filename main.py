@@ -7,7 +7,7 @@ st.set_page_config(page_title="Orçamento de Obras", page_icon="🏗️", layout
 st.title("🏗️ Orçamento de Obras")
 st.caption("Calcule o orçamento da sua obra e gere um resumo pronto para o WhatsApp.")
 
-# Lista completa de serviços corrigida
+# Lista completa de serviços sem erros de fechamento
 SERVICOS = {
     "Alvenaria": {
         "unidade": "m²",
@@ -91,4 +91,35 @@ SERVICOS = {
     },
     "Telhado de zinco + estrutura de ferro": {
         "unidade": "m²",
-        "preco_
+        "preco_medio_es": 180.00,
+        "materiais": [("Telha de zinco", 1.10, "m²"), ("Perfil de ferro", 4.0, "kg"), ("Parafusos / ganchos", 6.0, "un"), ("Tinta antiferrugem", 0.10, "L")],
+    },
+    "Instalação de caixa d'água": {
+        "unidade": "un",
+        "preco_medio_es": 250.00,
+        "materiais": [("Torneira boia", 1.0, "un"), ("Registros", 2.0, "un"), ("Conexões", 6.0, "un"), ("Tubo PVC", 6.0, "m")],
+    },
+    "Desentupimento de esgoto": {
+        "unidade": "serviço",
+        "preco_medio_es": 250.00,
+        "materiais": [],
+    },
+    "Limpeza de caixa de gordura": {
+        "unidade": "serviço",
+        "preco_medio_es": 150.00,
+        "materiais": [],
+    },
+    "Desentupimento de pia": {
+        "unidade": "serviço",
+        "preco_medio_es": 120.00,
+        "materiais": [],
+    },
+    "Limpeza de caixa d'água": {
+        "unidade": "un",
+        "preco_medio_es": 200.00,
+        "materiais": [("Cloro / desinfetante", 1.0, "L")],
+    },
+    "Instalação de forro PVC": {
+        "unidade": "m²",
+        "preco_medio_es": 45.00,
+        "mater
