@@ -1,70 +1,187 @@
 import streamlit as st
 from datetime import datetime
 
-st.set_page_config(page_title="Orçamento de Obras ES", page_icon="🏗️", layout="wide")
+# Configuração da página
+st.set_page_config(page_title="Orçamento de Obras", page_icon="🏗️", layout="wide")
 
-st.title("🏗️ Orçamento Profissional - Mestre das Obras")
-st.caption("Cálculo de mão de obra e estimativa de materiais (Padrão Espírito Santo)")
+st.title("🏗️ Orçamento de Obras")
+st.caption("Calcule o orçamento da sua obra e gere um resumo pronto para o WhatsApp.")
 
-# Banco de dados de serviços e materiais
+# Lista completa de serviços mantida integralmente
 SERVICOS = {
-    "Alvenaria": {"un": "m²", "preco": 55.0, "mat": "🧱 25 tijolos, 0.35 sacos cimento, 0.05m³ areia por m²"},
-    "Reboco": {"un": "m²", "preco": 35.0, "mat": "⚪ 0.20 sacos cimento, 0.03m³ areia por m²"},
-    "Piso": {"un": "m²", "preco": 45.0, "mat": "📐 1.1m² piso, 0.25 sacos argamassa por m²"},
-    "Porcelanato": {"un": "m²", "preco": 65.0, "mat": "💎 1.1m² porcelanato, 0.30 sacos argamassa AC3 por m²"},
-    "Gesso": {"un": "m²", "preco": 40.0, "mat": "⬜ 3 placas (60x60), 1kg gesso pó por m²"},
-    "Pintura Simples": {"un": "m²", "preco": 35.0, "mat": "🎨 0.1L tinta, lixa por m²"},
-    "Pintura c/ Emassamento": {"un": "m²", "preco": 60.0, "mat": "🎨 0.5kg massa, 0.12L tinta por m²"},
-    "Serralheria": {"un": "m²", "preco": 180.0, "mat": "🛠️ Perfil metálico e eletrodo conforme projeto"},
-    "Hidráulica": {"un": "ponto", "preco": 120.0, "mat": "🚰 Tubos e conexões por ponto"},
-    "Elétrica": {"un": "ponto", "preco": 120.0, "mat": "⚡ Fios, conduítes e caixinhas por ponto"},
-    "Laje": {"un": "m²", "preco": 90.0, "mat": "🏗️ Cimento, areia, brita, ferro e lajota/EPS"},
-    "Contra piso": {"un": "m²", "preco": 30.0, "mat": "📏 0.25 sacos cimento, 0.04m³ areia por m²"},
-    "Vigamento / Colunas": {"un": "m", "preco": 150.0, "mat": "⛓️ Ferro CA-50, estribos e concreto"},
-    "Sapata": {"un": "un", "preco": 200.0, "mat": "🧱 Ferro, 1 saco cimento, areia e brita por unidade"},
-    "Rejunte": {"un": "m²", "preco": 12.0, "mat": "🧴 0.3kg rejunte por m²"},
-    "Porta/Marco": {"un": "un", "preco": 150.0, "mat": "🚪 Espuma expansiva e parafusos"}
-}
-
-with st.sidebar:
-    st.header("Dados do Cliente")
-    nome = st.text_input("Nome do Cliente")
-    distancia = st.number_input("Distância da Obra (KM)", min_value=0.0)
-
-st.subheader("Selecione os Serviços")
-selecionados = []
-
-for serv, dados in SERVICOS.items():
-    with st.expander(f"➕ {serv} (R$ {dados['preco']}/{dados['un']})"):
-        col1, col2 = st.columns(2)
-        with col1:
-            qtd = st.number_input(f"Quantidade ({dados['un']})", min_value=0.0, key=f"q_{serv}")
-        with col2:
-            pr = st.number_input(f"Preço Unitário R$", value=dados['preco'], key=f"p_{serv}")
-        if qtd > 0:
-            selecionados.append({"nome": serv, "qtd": qtd, "valor": pr, "total": qtd * pr, "mat": dados['mat']})
-
-if st.button("📊 GERAR ORÇAMENTO PARA WHATSAPP"):
-    if not nome or not selecionados:
-        st.error("Preencha o nome e selecione ao menos um serviço!")
-    else:
-        st.balloons()
-        total_mo = sum(s['total'] for s in selecionados)
-        custo_km = distancia * 3.0 
-        total_geral = total_mo + custo_km
-        
-        texto = f"*ORÇAMENTO: {nome.upper()}*\n"
-        texto += f"📅 Data: {datetime.now().strftime('%d/%m/%Y')}\n\n"
-        
-        for s in selecionados:
-            texto += f"✅ *{s['nome']}*: {s['qtd']} {SERVICOS[s['nome']]['un']} x R${s['valor']:.2f} = *R${s['total']:.2f}*\n"
-            texto += f"   _Est. Material: {s['mat']}_\n\n"
-        
-        if custo_km > 0:
-            texto += f"🚚 *Deslocamento*: R${custo_km:.2f}\n"
-        
-        texto += f"\n💰 *TOTAL MÃO DE OBRA: R${total_geral:.2f}*"
-        texto += "\n\n_Obs: Valores referentes apenas à execução._"
-        
-        st.success("Tudo pronto! Copie o texto abaixo:")
-        st.text_area("Texto para copiar:", value=texto, height=400)
+    "Alvenaria": {
+        "unidade": "m²",
+        "preco_medio_es": 55.00,
+        "materiais": [
+            ("Tijolos / Blocos", 25, "un"),
+            ("Cimento", 0.35, "saco 50kg"),
+            ("Areia", 0.05, "m³"),
+        ],
+    },
+    "Reboco": {
+        "unidade": "m²",
+        "preco_medio_es": 35.00,
+        "materiais": [
+            ("Cimento", 0.20, "saco 50kg"),
+            ("Areia", 0.03, "m³"),
+            ("Cal", 0.15, "kg"),
+        ],
+    },
+    "Piso": {
+        "unidade": "m²",
+        "preco_medio_es": 45.00,
+        "materiais": [
+            ("Piso cerâmico", 1.10, "m²"),
+            ("Argamassa AC-II", 0.08, "saco 20kg"),
+            ("Rejunte", 0.30, "kg"),
+        ],
+    },
+    "Porcelanato": {
+        "unidade": "m²",
+        "preco_medio_es": 65.00,
+        "materiais": [
+            ("Porcelanato", 1.10, "m²"),
+            ("Argamassa AC-III", 0.10, "saco 20kg"),
+            ("Rejunte", 0.30, "kg"),
+            ("Espaçadores", 5.0, "un"),
+        ],
+    },
+    "Gesso": {
+        "unidade": "m²",
+        "preco_medio_es": 40.00,
+        "materiais": [
+            ("Gesso em pó", 8.0, "kg"),
+            ("Cantoneiras / fitas", 0.10, "un"),
+        ],
+    },
+    "Pintura Simples": {
+        "unidade": "m²",
+        "preco_medio_es": 35.00,
+        "materiais": [
+            ("Tinta látex", 0.10, "L"),
+            ("Lixa", 0.05, "un"),
+        ],
+    },
+    "Pintura com Emassamento": {
+        "unidade": "m²",
+        "preco_medio_es": 60.00,
+        "materiais": [
+            ("Massa corrida", 0.50, "kg"),
+            ("Tinta látex", 0.12, "L"),
+            ("Lixa", 0.10, "un"),
+            ("Selador", 0.08, "L"),
+        ],
+    },
+    "Serralheria": {
+        "unidade": "m²",
+        "preco_medio_es": 180.00,
+        "materiais": [
+            ("Perfil metálico", 2.5, "kg"),
+            ("Solda / eletrodo", 0.10, "kg"),
+            ("Tinta antiferrugem", 0.08, "L"),
+        ],
+    },
+    "Hidráulica": {
+        "unidade": "ponto",
+        "preco_medio_es": 120.00,
+        "materiais": [
+            ("Tubo PVC", 3.0, "m"),
+            ("Conexões", 4.0, "un"),
+            ("Cola / veda-rosca", 0.10, "un"),
+        ],
+    },
+    "Elétrica": {
+        "unidade": "ponto",
+        "preco_medio_es": 120.00,
+        "materiais": [
+            ("Fio 2,5mm", 8.0, "m"),
+            ("Eletroduto", 3.0, "m"),
+            ("Caixa 4x2", 1.0, "un"),
+            ("Tomada / interruptor", 1.0, "un"),
+        ],
+    },
+    "Laje": {
+        "unidade": "m²",
+        "preco_medio_es": 90.00,
+        "materiais": [
+            ("Cimento", 0.40, "saco 50kg"),
+            ("Areia", 0.04, "m³"),
+            ("Brita", 0.05, "m³"),
+            ("Ferro CA-50", 7.0, "kg"),
+            ("Lajota / EPS", 6.0, "un"),
+        ],
+    },
+    "Contra piso": {
+        "unidade": "m²",
+        "preco_medio_es": 30.00,
+        "materiais": [
+            ("Cimento", 0.25, "saco 50kg"),
+            ("Areia", 0.04, "m³"),
+        ],
+    },
+    "Vigamento / Colunas": {
+        "unidade": "m",
+        "preco_medio_es": 150.00,
+        "materiais": [
+            ("Ferro CA-50", 9.0, "kg"),
+            ("Estribos", 1.5, "kg"),
+            ("Cimento", 0.20, "saco 50kg"),
+            ("Areia", 0.02, "m³"),
+            ("Brita", 0.03, "m³"),
+            ("Madeira para forma", 1.5, "m²"),
+        ],
+    },
+    "Sapata": {
+        "unidade": "un",
+        "preco_medio_es": 200.00,
+        "materiais": [
+            ("Ferro CA-50", 12.0, "kg"),
+            ("Cimento", 1.0, "saco 50kg"),
+            ("Areia", 0.10, "m³"),
+            ("Brita", 0.15, "m³"),
+        ],
+    },
+    "Rejunte": {
+        "unidade": "m²",
+        "preco_medio_es": 12.00,
+        "materiais": [
+            ("Rejunte", 0.30, "kg"),
+        ],
+    },
+    "Colocação de porta / marco": {
+        "unidade": "un",
+        "preco_medio_es": 180.00,
+        "materiais": [
+            ("Porta com marco", 1.0, "un"),
+            ("Dobradiças", 3.0, "un"),
+            ("Fechadura", 1.0, "un"),
+            ("Espuma de poliuretano", 0.5, "un"),
+        ],
+    },
+    "Telhado de zinco + estrutura de ferro": {
+        "unidade": "m²",
+        "preco_medio_es": 180.00,
+        "materiais": [
+            ("Telha de zinco", 1.10, "m²"),
+            ("Perfil de ferro", 4.0, "kg"),
+            ("Parafusos / ganchos", 6.0, "un"),
+            ("Tinta antiferrugem", 0.10, "L"),
+        ],
+    },
+    "Instalação de caixa d'água": {
+        "unidade": "un",
+        "preco_medio_es": 250.00,
+        "materiais": [
+            ("Torneira boia", 1.0, "un"),
+            ("Registros", 2.0, "un"),
+            ("Conexões", 6.0, "un"),
+            ("Tubo PVC", 6.0, "m"),
+        ],
+    },
+    "Desentupimento de esgoto": {
+        "unidade": "serviço",
+        "preco_medio_es": 250.00,
+        "materiais": [],
+    },
+    "Limpeza de caixa de gordura": {
+        "
