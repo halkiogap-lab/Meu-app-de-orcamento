@@ -3,13 +3,13 @@ from datetime import datetime, timedelta
 from fpdf import FPDF
 import math
 
-# Configuração de Alta Performance
-st.set_page_config(page_title="ERP - Gestão de Obras & Manutenção", layout="wide", initial_sidebar_state="expanded")
+# Configuração Profissional
+st.set_page_config(page_title="ERP - Gestão de Obras", layout="wide", initial_sidebar_state="expanded")
 
 def moeda(v):
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- BANCO DE DADOS DE SERVIÇOS (RESTAURADO E COMPLETO) ---
+# --- BANCO DE DADOS COMPLETO E RESTAURADO ---
 DB_SERVICOS = {
     "ESTRUTURA": {
         "Sapata / Fundação": {"un": "un", "p": 250.0},
@@ -58,81 +58,82 @@ tab1, tab2, tab3 = st.tabs(["📊 MONITOR DO PATRÃO", "📝 GERADOR DE ORÇAMEN
 with tab3:
     st.header("Configurações Globais")
     margem_global = st.slider("Margem de Lucro (%)", 0, 150, 30)
-    custo_km = st.number_input("Custo por KM (R$)", value=3.20)
-    prod_diaria = st.number_input("Produção (m²/dia)", value=10.0)
-    dias_semana = st.selectbox("Dias de Trabalho/Semana", [5, 6, 7])
+    custo_km = st.number_input("Custo Operacional por KM", value=3.20)
+    prod_diaria = st.number_input("Rendimento Diário (m²)", value=10.0)
 
 with tab2:
-    st.header("Novo Orçamento")
+    st.header("Entrada de Dados")
     c1, c2 = st.columns(2)
     cliente = c1.text_input("Nome do Cliente")
     endereco = c2.text_input("Local da Obra")
-    distancia = st.number_input("Distância Total (KM)", min_value=0.0)
+    distancia = st.number_input("Distância para Logística (KM)", min_value=0.0)
 
     itens_selecionados = []
-    total_base_obra = 0.0
+    total_base_pura = 0.0
     total_m2_obra = 0.0
 
+    # LOOP CORRIGIDO COM NOMES VISÍVEIS
     idx = 0
     for cat, servs in DB_SERVICOS.items():
-        with st.expander(f"📂 {cat}"):
+        with st.expander(f"📂 CATEGORIA: {cat}"):
             for s_nome, s_info in servs.items():
-                col_s1, col_s2, col_s3 = st.columns([3, 1, 1])
-                qtd = col_s2.number_input(f"Qtd ({s_info['un']})", min_value=0.0, key=f"inp_{idx}")
-                p_manual = col_s3.number_input(f"Preço Base", value=s_info['p'], key=f"prc_{idx}")
+                st.markdown(f"**🔹 {s_nome}**") # NOME DO SERVIÇO AQUI
+                col_s1, col_s2 = st.columns(2)
+                qtd = col_s1.number_input(f"Quantidade ({s_info['un']})", min_value=0.0, key=f"q_{idx}")
+                p_base = col_s2.number_input(f"Valor Unitário Base (R$)", value=float(s_info['p']), key=f"p_{idx}")
                 
                 if qtd > 0:
-                    sub_base = qtd * p_manual
-                    total_base_obra += sub_base
+                    total_base_pura += (qtd * p_base)
                     if s_info['un'] == "m²": total_m2_obra += qtd
-                    itens_selecionados.append({"nome": s_nome, "qtd": qtd, "un": s_info['un'], "p_base": p_manual})
+                    itens_selecionados.append({"nome": s_nome, "qtd": qtd, "un": s_info['un'], "p_unit": p_base})
                 idx += 1
+                st.divider()
 
 with tab1:
     if not itens_selecionados:
-        st.warning("Selecione serviços no Gerador.")
+        st.warning("Selecione os serviços na aba ao lado.")
     else:
-        custo_logistica = distancia * custo_km
-        valor_final_total = (total_base_obra + custo_logistica) * (1 + margem_global/100)
-        fator = valor_final_total / total_base_obra if total_base_obra > 0 else 1
-        dias_uteis = math.ceil(total_m2_obra / prod_diaria) if total_m2_obra > 0 else 1
+        # CÁLCULOS
+        custo_log = distancia * custo_km
+        valor_final = (total_base_pura + custo_log) * (1 + margem_global/100)
+        fator = valor_final / total_base_pura if total_base_pura > 0 else 1
+        prazo = math.ceil(total_m2_obra / prod_diaria) if total_m2_obra > 0 else 1
 
-        st.header("Dashboard de Lucratividade")
-        col_m1, col_m2 = st.columns(2)
-        col_m1.metric("Total Cliente", moeda(valor_final_total))
-        col_m2.metric("Lucro Estimado", moeda(valor_final_total - total_base_obra - custo_logistica))
+        st.header("Dashboard de Gestão")
+        m1, m2 = st.columns(2)
+        m1.metric("Valor p/ Cliente", moeda(valor_final))
+        m2.metric("Seu Lucro Real", moeda(valor_final - total_base_pura - custo_log))
         
         st.divider()
         st.subheader("Visualização para o Cliente")
         
-        # NOTA TÉCNICA FORMAL
-        nota_formal = "⚠️ *Nota técnica: Os valores apresentados compreendem exclusivamente a prestação de serviços de mão de obra especializada e a utilização de maquinário próprio (ferramentas e EPIs). O fornecimento de todo e qualquer material necessário para a execução integral do projeto é de responsabilidade exclusiva do contratante.*"
+        nota_tecnica = "⚠️ *Nota técnica: Os valores apresentados compreendem exclusivamente a prestação de serviços de mão de obra especializada e a utilização de maquinário próprio (ferramentas e EPIs). O fornecimento de todo e qualquer material necessário para a execução integral do projeto é de responsabilidade exclusiva do contratante.*"
         
         txt_zap = f"🏠 *PROPOSTA TÉCNICA - {cliente.upper()}*\n📍 *LOCAL:* {endereco}\n📅 *DATA:* {datetime.now().strftime('%d/%m/%Y')}\n" + "─"*20 + "\n"
-        for item in itens_selecionados:
-            p_venda = item['p_base'] * fator
-            txt_zap += f"🔹 *{item['nome']}*: {item['qtd']} {item['un']} | Total: {moeda(item['qtd'] * p_venda)}\n"
+        for i in itens_selecionados:
+            p_venda = i['p_unit'] * fator
+            txt_zap += f"✅ *{i['nome']}*: {i['qtd']} {i['un']} | Total: {moeda(i['qtd'] * p_venda)}\n"
         
         txt_zap += "─"*20 + "\n"
-        txt_zap += f"⏱️ *PRAZO:* {dias_uteis} dias úteis\n💰 *INVESTIMENTO:* {moeda(valor_final_total)}\n\n"
-        txt_zap += nota_formal
+        txt_zap += f"⏱️ *PRAZO:* {prazo} dias úteis\n💰 *INVESTIMENTO TOTAL: {moeda(valor_final)}*\n\n"
+        txt_zap += nota_tecnica
 
-        st.text_area("WhatsApp (Texto Diluído)", value=txt_zap, height=300)
+        st.text_area("Copia pro Zap", value=txt_zap, height=300)
 
-        if st.button("📄 Gerar PDF"):
+        if st.button("📥 Gerar PDF Oficial"):
             try:
                 pdf = FPDF()
                 pdf.add_page()
                 pdf.set_font("Helvetica", "B", 16); pdf.cell(190, 10, "PROPOSTA DE SERVICOS", ln=True, align="C")
-                pdf.set_font("Helvetica", "", 10); pdf.ln(10)
+                pdf.set_font("Helvetica", "", 10); pdf.ln(5)
                 pdf.cell(190, 8, f"CLIENTE: {cliente} | LOCAL: {endereco}", ln=True)
                 pdf.ln(5)
-                for item in itens_selecionados:
-                    p_venda = item['p_base'] * fator
-                    pdf.cell(190, 8, f"- {item['nome']}: {moeda(item['qtd'] * p_venda)}", ln=True)
+                for i in itens_selecionados:
+                    p_venda = i['p_unit'] * fator
+                    pdf.cell(190, 8, f"- {i['nome']} ({i['qtd']} {i['un']}): {moeda(i['qtd'] * p_venda)}", ln=True)
                 pdf.ln(10); pdf.set_font("Helvetica", "B", 12)
-                pdf.cell(190, 10, f"TOTAL: {moeda(valor_final_total)}", ln=True)
+                pdf.cell(190, 10, f"TOTAL: {moeda(valor_final)}", ln=True)
                 pdf.set_font("Helvetica", "I", 9); pdf.ln(5)
-                pdf.multi_cell(190, 6, nota_formal.replace("*", "").replace("⚠️ ", ""))
+                pdf.multi_cell(190, 6, nota_tecnica.replace("*", "").replace("⚠️ ", ""))
                 st.download_button("Baixar PDF", pdf.output(dest='S').encode('latin-1', 'ignore'), f"Orcamento_{cliente}.pdf")
             except Exception as e: st.error(f"Erro: {e}")
