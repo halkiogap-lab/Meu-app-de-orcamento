@@ -1,39 +1,82 @@
 import streamlit as st
-from datetime import datetime, timedelta
 from fpdf import FPDF
-import math
 
-# --- CONFIGURAÇÃO DE ALTA PERFORMANCE ---
-st.set_page_config(page_title="OT Construções | ERP", layout="wide", initial_sidebar_state="expanded")
+# Título da Aba
+st.set_page_config(page_title="OT Construções - Propostas", layout="centered")
 
-# Estilização Premium Dark
-st.markdown("""
-    <style>
-    .stApp { background-color: #0E1117; color: #FFFFFF; }
-    [data-testid="stMetricValue"] { color: #00FFCC; font-weight: bold; }
-    .stTabs [data-baseweb="tab-list"] { gap: 20px; }
-    .stTabs [data-baseweb="tab"] { height: 50px; background-color: #1E1E1E; border-radius: 5px; color: white; }
-    .stExpander { background-color: #161B22; border: 1px solid #30363D; }
-    /* Botão de download em destaque */
-    .stDownloadButton>button { background-color: #00FFCC !important; color: #0E1117 !important; font-weight: bold !important; }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- UTILITÁRIOS ---
 def moeda(v):
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- BANCO DE PREÇOS (ESTRUTURA COMPLETA) ---
-DB_SERVICOS = {
-    "01. FUNDAÇÃO & INFRA": {
-        "Locação e Gabarito": {"un": "m²", "p": 25.0},
-        "Escavação Manual": {"un": "m³", "p": 180.0},
-        "Sapatas / Blocos": {"un": "un", "p": 350.0},
-        "Viga Baldrame": {"un": "m", "p": 120.0},
-        "Impermeabilização Sika": {"un": "m²", "p": 48.0},
-    },
-    "02. ESTRUTURA & ALVENARIA": {
-        "Alvenaria de Vedação": {"un": "m²", "p": 65.0},
+st.title("🏛️ Gerador de Proposta - OT Construções")
+
+# 1. ENTRADA DE DADOS
+with st.container():
+    cliente = st.text_input("Nome do Cliente", placeholder="Ex: Sr. Osmar")
+    local = st.text_input("Local da Obra", placeholder="Ex: Guandu")
+    servico_nome = st.text_input("Serviço Principal", placeholder="Ex: Reforma de Cozinha em Porcelanato")
+    valor_total = st.number_input("Valor Final para o Cliente (R$)", min_value=0.0)
+    prazo = st.text_input("Prazo Estimado", placeholder="Ex: 15 dias úteis")
+
+st.divider()
+
+# 2. PRÉVIA PARA WHATSAPP
+if valor_total > 0:
+    st.subheader("📲 Prévia para o WhatsApp")
+    
+    texto_zap = (
+        f"🏠 *PROPOSTA TÉCNICA - OT CONSTRUÇÕES*\n"
+        f"📍 *LOCAL:* {local}\n"
+        f"─" * 15 + "\n"
+        f"✅ *SERVIÇO:* {servico_nome}\n"
+        f"⏱️ *PRAZO:* {prazo}\n"
+        f"💰 *INVESTIMENTO:* {moeda(valor_total)}\n\n"
+        f"⚠️ *Nota:* Valores referentes exclusivamente à mão de obra e ferramentas. "
+        f"Todo o material é de responsabilidade do contratante."
+    )
+    
+    st.text_area("Copia e Cola no Zap:", texto_zap, height=200)
+
+    # 3. GERADOR DE PDF (MÉTODO SEGURO)
+    if st.button("📄 Baixar Orçamento Oficial"):
+        try:
+            pdf = FPDF()
+            pdf.add_page()
+            
+            # Cabeçalho
+            pdf.set_font("Arial", "B", 18)
+            pdf.cell(190, 15, "OT CONSTRUCOES", 0, 1, "C")
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(190, 10, "PROPOSTA TECNICA DE PRESTACAO DE SERVICOS", 0, 1, "C")
+            pdf.ln(10)
+
+            # Dados
+            pdf.set_font("Arial", "", 12)
+            pdf.cell(190, 8, f"CLIENTE: {cliente.upper()}", 0, 1)
+            pdf.cell(190, 8, f"LOCAL: {local.upper()}", 0, 1)
+            pdf.cell(190, 8, f"DATA: 22/04/2026", 0, 1)
+            pdf.ln(10)
+
+            # Conteúdo
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(190, 10, "DESCRITIVO DO SERVICO:", "B", 1)
+            pdf.set_font("Arial", "", 12)
+            pdf.multi_cell(190, 10, f"- {servico_nome}")
+            pdf.ln(10)
+
+            # Rodapé Financeiro
+            pdf.set_font("Arial", "B", 14)
+            pdf.cell(190, 10, f"TOTAL DO INVESTIMENTO: {moeda(valor_total)}", 0, 1, "R")
+            
+            # Exportação Binária Segura
+            pdf_out = pdf.output(dest='S').encode('latin-1', 'ignore')
+            st.download_button(
+                label="📥 Clique para Salvar o PDF",
+                data=pdf_out,
+                file_name=f"Proposta_{cliente}.pdf",
+                mime="application/pdf"
+            )
+        except Exception as e:
+            st.error(f"Erro ao gerar documento: {e}")
         "Pilar / Viga (Mão de Obra)": {"un": "m", "p": 155.0},
         "Laje Maciça (Montagem/Batida)": {"un": "m²", "p": 98.0},
         "Escada Estrutural (Mão de Obra)": {"un": "un", "p": 4500.0},
