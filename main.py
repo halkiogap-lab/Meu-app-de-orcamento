@@ -1,73 +1,110 @@
 import streamlit as st
-from datetime import datetime
+import pandas as pd
 from fpdf import FPDF
 
-# --- INTERFACE LIMPA E SEM ERROS ---
-st.set_page_config(page_title="PRO-OBRA FINAL", layout="wide")
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="OT Construções ERP", layout="wide")
 
-def moeda(v):
-    return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+# Estilização Dark Modern
+st.markdown("""
+    <style>
+    [data-testid="stSidebar"] { background-color: #111; }
+    .stMetric { background-color: #1e1e1e; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; }
+    </style>
+""", unsafe_allow_html=True)
 
-# --- LISTA DIRETA DE SERVIÇOS ---
-SERVICOS = {
-    "🏗️ ESTRUTURA": {"Sapata": 280.0, "Viga": 85.0, "Laje": 115.0, "Alvenaria": 65.0},
-    "💎 ACABAMENTO": {"Reboco": 45.0, "Porcelanato": 95.0, "Pintura": 80.0, "Bancada": 550.0},
-    "🔧 OUTROS": {"Hidráulica": 160.0, "Telhado": 195.0, "Limpeza": 25.0}
+# --- BANCO DE DADOS DE ETAPAS ---
+ESTRUTURA_OBRA = {
+    "Fundação & Infra": ["Locação/gabarito", "Escavação", "Sapatas", "Blocos", "Viga baldrame", "Impermeabilização"],
+    "Estrutura & Alvenaria": ["Colunas", "Pilares", "Vigas", "Lajes", "Escadas estruturais"],
+    "Instalações Brutas": ["Rede de esgoto", "Pontos de água", "Conduítes", "Quadros de energia"],
+    "Cobertura": ["Telhados (Zinco/Sanduíche)", "Metalon", "Calhas/Rufos"],
+    "Revestimento & Acabamento": ["Reboco técnico", "Contra-piso", "Gesso", "Porcelanatos", "Bancadas", "Rodapés"],
+    "Finalização & Pintura": ["Massa corrida", "Pintura", "Texturas", "Louças", "Limpeza pós-obra"]
 }
 
-st.sidebar.title("💰 AJUSTES")
-margem = st.sidebar.slider("Lucro (%)", 0, 100, 40)
-frete = st.sidebar.number_input("Custo KM", value=3.50)
-
-st.title("🏛️ Sistema de Orçamentos Profissional")
-
-# Campos de texto
-cli = st.text_input("Nome do Cliente")
-loc = st.text_input("Local da Obra")
-dist = st.number_input("Distância KM", min_value=0.0)
-
-st.divider()
-
-sel = []
-total_base = 0.0
-
-# Seleção de serviços
-for cat, itens in SERVICOS.items():
-    with st.expander(cat):
-        for nome, preco in itens.items():
-            qtd = st.number_input(f"{nome} (Qtd)", min_value=0.0, key=nome)
-            if qtd > 0:
-                total_base += (qtd * preco)
-                sel.append({"n": nome, "q": qtd, "p": preco})
-
-if sel:
-    st.divider()
-    # Cálculos
-    valor_final = (total_base + (dist * frete)) * (1 + margem/100)
-    fator = valor_final / total_base if total_base > 0 else 1
+# --- LÓGICA DE PDF (CORREÇÃO DE BUGS DE SAÍDA) ---
+def gerar_pdf_binario(cliente, preco_final, etapas_ativas):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, "OT CONSTRUÇÕES - PROPOSTA COMERCIAL", ln=True, align='C')
+    pdf.ln(10)
     
-    st.metric("VALOR TOTAL PARA O CLIENTE", moeda(valor_final))
+    pdf.set_font("Arial", size=12)
+    pdf.cell(0, 10, f"Cliente: {cliente}", ln=True)
+    pdf.cell(0, 10, f"Valor Total do Investimento: R$ {preco_final:,.2f}", ln=True)
+    pdf.ln(5)
     
-    # Zap
-    txt_zap = f"*ORÇAMENTO: {cli}*\n"
-    for i in sel:
-        txt_zap += f"- {i['n']}: {moeda((i['q']*i['p'])*fator)}\n"
-    txt_zap += f"\n*TOTAL: {moeda(valor_final)}*"
-    st.text_area("Copia pro WhatsApp", txt_zap)
-
-    # PDF
-    if st.button("📄 Gerar PDF"):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 16)
-        pdf.cell(190, 10, "ORCAMENTO", 0, 1, "C")
-        pdf.set_font("Arial", "", 12)
-        pdf.ln(10)
-        pdf.cell(190, 10, f"CLIENTE: {cli}", 0, 1)
-        for i in sel:
-            pdf.cell(190, 8, f"- {i['n']}: {moeda((i['q']*i['p'])*fator)}", 0, 1)
-        pdf.ln(10)
-        pdf.cell(190, 10, f"TOTAL: {moeda(valor_final)}", 0, 1, "R")
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "Serviços Inclusos:", ln=True)
+    pdf.set_font("Arial", size=10)
+    for etapa in etapas_ativas:
+        pdf.multi_cell(0, 7, f"- {etapa}")
         
-        out = pdf.output(dest='S').encode('latin-1', 'ignore')
-        st.download_button("📥 Baixar PDF", out, "Orcamento.pdf", "application/pdf")
+    # Método seguro para evitar AttributeError em bytes
+    return pdf.output(dest='S').encode('latin-1')
+
+# --- INTERFACE PRINCIPAL ---
+st.title("🏗️ ERP OT Construções | Alto Padrão")
+
+with st.sidebar:
+    st.header("⚙️ Inteligência Financeira")
+    margem = st.slider("Margem de Lucro (%)", 10, 100, 30) / 100
+    st.divider()
+    st.header("🚚 Logística")
+    km = st.number_input("Distância (KM)", 0.0, 500.0, 20.0)
+    combustivel = st.number_input("Custo KM (R$)", 0.0, 10.0, 2.80)
+    custo_logistica = km * combustivel
+
+tab1, tab2, tab3 = st.tabs(["📊 Monitor do Patrão", "📝 Gerador de Orçamento", "📲 Saída WhatsApp"])
+
+with tab2:
+    col_c1, col_c2 = st.columns(2)
+    nome_cliente = col_c1.text_input("Nome do Cliente", "Residência de Alto Padrão")
+    m2_obra = col_c2.number_input("Metragem da Obra (m²)", 50, 5000, 200)
+    
+    custos_etapas = {}
+    etapas_selecionadas = []
+    
+    for etapa, itens in ESTRUTURA_OBRA.items():
+        with st.expander(f"🛠️ {etapa}"):
+            ativo = st.checkbox("Incluir esta etapa", key=f"check_{etapa}")
+            if ativo:
+                valor = st.number_input(f"Custo Mão de Obra ({etapa})", 0.0, 1000000.0, key=f"val_{etapa}")
+                custos_etapas[etapa] = valor
+                etapas_selecionadas.append(etapa)
+
+    # Cálculos Internos
+    custo_total_obra = sum(custos_etapas.values()) + custo_logistica
+    preco_final_cliente = custo_total_obra * (1 + margem)
+    lucro_liquido = preco_final_cliente - custo_total_obra
+    # Estimativa: 0.6 dias por m2 para alto padrão
+    dias_estimados = int(m2_obra * 0.6)
+
+with tab1:
+    st.subheader("Painel de Performance (Visão Gestor)")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Faturamento Bruto", f"R$ {preco_final_cliente:,.2f}")
+    m2.metric("Lucro Líquido (Livre)", f"R$ {lucro_liquido:,.2f}", delta=f"{margem*100:.0f}%")
+    m3.metric("Prazo de Entrega", f"{dias_estimados} dias")
+
+with tab3:
+    st.subheader("Formatação para Cliente")
+    texto_whatsapp = f"🏠 *ORÇAMENTO: OT CONSTRUÇÕES*\n\n"
+    texto_whatsapp += f"Olá {nome_cliente}, segue proposta para sua obra:\n\n"
+    for e in etapas_selecionadas:
+        texto_whatsapp += f"✅ *{e}*\n"
+    texto_whatsapp += f"\n💰 *Investimento Total:* R$ {preco_final_cliente:,.2f}\n"
+    texto_whatsapp += f"⏳ *Prazo de Conclusão:* {dias_estimados} dias úteis\n\n_Qualidade e excelência em cada detalhe._"
+    
+    st.text_area("Copie para o WhatsApp", texto_whatsapp, height=300)
+    
+    # Botão de Exportação com correção de bug de bytes
+    pdf_output = gerar_pdf_binario(nome_cliente, preco_final_cliente, etapas_selecionadas)
+    st.download_button(
+        label="📥 Baixar Orçamento PDF Profissional",
+        data=pdf_output,
+        file_name=f"Orcamento_OT_{nome_cliente}.pdf",
+        mime="application/pdf"
+    )
