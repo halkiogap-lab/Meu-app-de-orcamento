@@ -7,7 +7,7 @@ st.set_page_config(page_title="Orçamento de Obras", page_icon="🏗️", layout
 st.title("🏗️ Orçamento de Obras")
 st.caption("Calcule o orçamento e gere o resumo para o WhatsApp.")
 
-# Lista de serviços completa
+# Lista de serviços revisada (Linhas 11 até 39 aproximadamente)
 SERVICOS = {
     "Alvenaria": {"unidade": "m²", "preco_medio_es": 55.00, "materiais": [("Tijolos", 25, "un"), ("Cimento", 0.35, "saco"), ("Areia", 0.05, "m³")]},
     "Reboco": {"unidade": "m²", "preco_medio_es": 35.00, "materiais": [("Cimento", 0.20, "saco"), ("Areia", 0.03, "m³")]},
@@ -34,4 +34,4 @@ SERVICOS = {
     "Instalação de forro PVC": {"unidade": "m²", "preco_medio_es": 45.00, "materiais": [("Régua PVC", 1.10, "m²")]},
     "Instalação de forro de gesso": {"unidade": "m²", "preco_medio_es": 55.00, "materiais": [("Placa gesso", 1.10, "m²")]},
     "Colocação de pia de mármore": {"unidade": "un", "preco_medio_es": 250.00, "materiais": [("Silicone", 1.0, "un")]},
-    "Colocação de pia de fibra": {"unidade": "un", "preco_medio_es": 150.00
+    "Colocação de pia de fibra": {"unidade": "un", "preco_medio_es": 150.00, "materiais": [("Sifão",
