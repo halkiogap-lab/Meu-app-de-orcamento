@@ -14,6 +14,8 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] { gap: 20px; }
     .stTabs [data-baseweb="tab"] { height: 50px; background-color: #1E1E1E; border-radius: 5px; color: white; }
     .stExpander { background-color: #161B22; border: 1px solid #30363D; }
+    /* Botão de download em destaque */
+    .stDownloadButton>button { background-color: #00FFCC !important; color: #0E1117 !important; font-weight: bold !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -21,57 +23,68 @@ st.markdown("""
 def moeda(v):
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- BANCO DE PREÇOS (ALTO PADRÃO) ---
+# --- BANCO DE PREÇOS (ESTRUTURA COMPLETA) ---
 DB_SERVICOS = {
-    "FUNDAÇÃO & INFRA": {
+    "01. FUNDAÇÃO & INFRA": {
         "Locação e Gabarito": {"un": "m²", "p": 25.0},
         "Escavação Manual": {"un": "m³", "p": 180.0},
-        "Viga Baldrame (Concretagem)": {"un": "m", "p": 120.0},
-        "Impermeabilização Sika": {"un": "m²", "p": 45.0},
+        "Sapatas / Blocos": {"un": "un", "p": 350.0},
+        "Viga Baldrame": {"un": "m", "p": 120.0},
+        "Impermeabilização Sika": {"un": "m²", "p": 48.0},
     },
-    "ESTRUTURA & ALVENARIA": {
+    "02. ESTRUTURA & ALVENARIA": {
         "Alvenaria de Vedação": {"un": "m²", "p": 65.0},
         "Pilar / Viga (Mão de Obra)": {"un": "m", "p": 155.0},
-        "Laje Maciça (Montagem)": {"un": "m²", "p": 95.0},
-        "Escada Cascata (Estrutural)": {"un": "un", "p": 4500.0},
+        "Laje Maciça (Montagem/Batida)": {"un": "m²", "p": 98.0},
+        "Escada Estrutural (Mão de Obra)": {"un": "un", "p": 4500.0},
     },
-    "REVESTIMENTO & ACABAMENTO": {
-        "Reboco Técnico": {"un": "m²", "p": 45.0},
-        "Porcelanato Grande Formato": {"un": "m²", "p": 120.0},
-        "Bancada Esculpida": {"un": "m", "p": 650.0},
-        "Rodapé Embutido": {"un": "m", "p": 35.0},
+    "03. ACABAMENTO ALTO PADRÃO": {
+        "Reboco Técnico (Nivelado)": {"un": "m²", "p": 45.0},
+        "Porcelanato Grande Formato": {"un": "m²", "p": 125.0},
+        "Bancada Esculpida em Porcelanato": {"un": "m", "p": 680.0},
+        "Rodapé Embutido": {"un": "m", "p": 38.0},
+        "Gesso Liso / Drywall": {"un": "m²", "p": 65.0},
     },
-    "PINTURA & FINALIZAÇÃO": {
-        "Massa Corrida & Lixamento": {"un": "m²", "p": 40.0},
-        "Pintura Premium (Toque de Seda)": {"un": "m²", "p": 35.0},
+    "04. ELÉTRICA & HIDRÁULICA": {
+        "Ponto de Elétrica": {"un": "pt", "p": 145.0},
+        "Quadro Geral de Energia": {"un": "un", "p": 550.0},
+        "Ponto de Hidráulica/Esgoto": {"un": "pt", "p": 160.0},
+        "Instalação de Louças/Metais": {"un": "un", "p": 120.0},
+    },
+    "05. PINTURA & FINALIZAÇÃO": {
+        "Massa Corrida & Lixamento": {"un": "m²", "p": 42.0},
+        "Pintura Premium (Interna/Externa)": {"un": "m²", "p": 35.0},
+        "Aplicação de Textura/Grafiato": {"un": "m²", "p": 48.0},
         "Limpeza Pós-Obra Técnica": {"un": "m²", "p": 25.0},
     }
 }
 
-# --- INTERFACE PRINCIPAL ---
+# --- HEADER ---
 st.title("🏗️ OT CONSTRUÇÕES - Intelligence ERP")
+st.caption("Gestão de Orçamentos e Lucratividade para Alto Padrão")
 
-tab1, tab2, tab3 = st.tabs(["📊 MONITOR DO PATRÃO", "📝 GERADOR DE ORÇAMENTO", "⚙️ TABELA DE PREÇOS"])
+tab1, tab2, tab3 = st.tabs(["📊 MONITOR DO PATRÃO", "📝 GERADOR DE ORÇAMENTO", "⚙️ CONFIGURAÇÕES"])
 
-# --- TABELA DE PREÇOS (CONFIGURAÇÃO) ---
+# --- TAB3: CONFIGURAÇÕES ---
 with tab3:
-    st.header("Configurações de Margem e Logística")
+    st.header("Parâmetros de Negócio")
     col_c1, col_c2 = st.columns(2)
     with col_c1:
         margem_global = st.slider("Margem de Lucro OT (%)", 0, 200, 40)
         custo_km = st.number_input("Custo Logístico por KM (R$)", value=4.50)
     with col_c2:
-        prod_diaria = st.number_input("Rendimento Equipe (m²/dia)", value=5.0)
+        prod_diaria = st.number_input("Capacidade de Execução (m²/dia)", value=5.0)
+        dias_trabalho = st.selectbox("Dias de Trabalho por Semana", [5, 6, 7])
 
-# --- GERADOR DE ORÇAMENTO ---
+# --- TAB2: GERADOR DE ORÇAMENTO ---
 with tab2:
-    st.header("Dados do Cliente")
-    c1, c2, c3 = st.columns([2, 2, 1])
-    nome_cliente = c1.text_input("Nome do Cliente", placeholder="Ex: Dr. Roberto Silva")
-    endereco = c2.text_input("Local da Obra")
-    distancia = c3.number_input("Distância (KM)", min_value=0.0)
+    st.header("Dados do Projeto")
+    c1, c2, c3 = st.columns(3)
+    nome_cliente = c1.text_input("Cliente", placeholder="Nome ou Empresa")
+    endereco = c2.text_input("Endereço / Obra")
+    distancia = c3.number_input("Distância Logística (KM)", min_value=0.0)
 
-    st.subheader("Seleção de Serviços")
+    st.subheader("Seleção Técnica de Serviços")
     itens_selecionados = []
     total_base_mao_obra = 0.0
     total_m2_obra = 0.0
@@ -82,7 +95,7 @@ with tab2:
                 col_1, col_2, col_3 = st.columns([3, 1, 1])
                 col_1.write(f"**{s_nome}**")
                 qtd = col_2.number_input(f"Qtd ({s_info['un']})", min_value=0.0, key=f"q_{s_nome}")
-                # Preço base vem do DB mas pode ser editado
+                # Preço base editável por obra
                 preco_base = col_3.number_input(f"Preço Unitário", value=s_info['p'], key=f"p_{s_nome}")
                 
                 if qtd > 0:
@@ -90,206 +103,98 @@ with tab2:
                     if s_info['un'] == "m²": total_m2_obra += qtd
                     itens_selecionados.append({"nome": s_nome, "qtd": qtd, "un": s_info['un'], "p_base": preco_base})
 
-# --- MONITOR DO PATRÃO ---
+# --- TAB1: MONITOR DO PATRÃO (VISÃO GESTOR) ---
 with tab1:
     if not itens_selecionados:
-        st.info("Aguardando seleção de itens no Gerador...")
+        st.info("Utilize a aba 'GERADOR DE ORÇAMENTO' para selecionar os itens da obra.")
     else:
+        # Cálculos de Inteligência
         custo_logistica = distancia * custo_km
         valor_final_cliente = (total_base_mao_obra + custo_logistica) * (1 + margem_global/100)
         lucro_liquido = valor_final_cliente - total_base_mao_obra - custo_logistica
-        dias_obra = math.ceil(total_m2_obra / prod_diaria) if total_m2_obra > 0 else 7
+        
+        # Cronograma
+        dias_uteis = math.ceil(total_m2_obra / prod_diaria) if total_m2_obra > 0 else 7
+        prazo_final_data = datetime.now() + timedelta(days=math.ceil(dias_uteis * (7/dias_trabalho)))
 
-        st.subheader("Análise de Lucratividade")
+        st.subheader("Painel de Lucratividade")
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("FATURAMENTO", moeda(valor_final_cliente))
-        m2.metric("LUCRO OT", moeda(lucro_liquido), f"{margem_global}%")
-        m3.metric("LOGÍSTICA", moeda(custo_logistica))
-        m4.metric("CRONOGRAMA", f"{dias_obra} DIAS")
+        m1.metric("FATURAMENTO BRUTO", moeda(valor_final_cliente))
+        m2.metric("LUCRO REAL (LÍQUIDO)", moeda(lucro_liquido), f"{margem_global}%")
+        m3.metric("CUSTO OPERACIONAL", moeda(total_base_mao_obra + custo_logistica))
+        m4.metric("PRAZO ESTIMADO", f"{dias_uteis} DIAS")
 
         st.divider()
 
-        # Fator de diluição: Transforma custos internos em preço de venda por item
+        # Fator de Diluição (Oculta lucro e logística no preço unitário dos itens)
         fator = valor_final_cliente / total_base_mao_obra if total_base_mao_obra > 0 else 1
         
-        # Formatação WhatsApp
-        zap_texto = f"🏗️ *PROPOSTA OT CONSTRUÇÕES*\n"
-        zap_texto += f"👤 *CLIENTE:* {nome_cliente.upper()}\n"
-        zap_texto += f"📍 *LOCAL:* {endereco}\n\n"
-        for item in itens_selecionados:
-            p_venda = item['p_base'] * fator
-            zap_texto += f"✅ *{item['nome']}*\n{item['qtd']} {item['un']} — {moeda(item['qtd']*p_venda)}\n\n"
-        zap_texto += f"⏱️ *PRAZO:* {dias_obra} dias úteis\n"
-        zap_texto += f"💰 *TOTAL:* {moeda(valor_final_cliente)}"
+        col_out1, col_out2 = st.columns(2)
         
-        st.text_area("Cópia para WhatsApp (Valores Diluídos)", value=zap_texto, height=300)
-
-        # Geração de PDF (Correção de Bug de Saída)
-        if st.button("📄 Exportar PDF Profissional"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", 'B', 16)
-            pdf.cell(190, 10, "OT CONSTRUCOES - ORCAMENTO", ln=True, align='C')
-            pdf.set_font("Arial", '', 10)
-            pdf.cell(190, 10, f"Cliente: {nome_cliente} | Data: {datetime.now().strftime('%d/%m/%Y')}", ln=True, align='C')
-            pdf.ln(10)
-            
-            pdf.set_fill_color(200, 200, 200)
-            pdf.cell(110, 10, " DESCRICAO", 1, 0, 'L', True)
-            pdf.cell(30, 10, " QTD", 1, 0, 'C', True)
-            pdf.cell(50, 10, " TOTAL", 1, 1, 'C', True)
+        with col_out1:
+            st.subheader("📲 Texto para WhatsApp")
+            zap_texto = f"🏗️ *ORÇAMENTO: OT CONSTRUÇÕES*\n"
+            zap_texto += f"👤 *CLIENTE:* {nome_cliente.upper()}\n"
+            zap_texto += f"📍 *LOCAL:* {endereco}\n"
+            zap_texto += "─" * 20 + "\n\n"
             
             for item in itens_selecionados:
                 p_venda = item['p_base'] * fator
-                pdf.cell(110, 8, f" {item['nome']}", 1)
-                pdf.cell(30, 8, f" {item['qtd']} {item['un']}", 1, 0, 'C')
-                pdf.cell(50, 8, f" {moeda(item['qtd']*p_venda)}", 1, 1, 'R')
+                zap_texto += f"✅ *{item['nome']}*\n   {item['qtd']} {item['un']} — {moeda(item['qtd'] * p_venda)}\n\n"
             
-            pdf.ln(10)
-            pdf.set_font("Arial", 'B', 12)
-            pdf.cell(190, 10, f"TOTAL: {moeda(valor_final_cliente)}", align='R')
+            zap_texto += "─" * 20 + "\n"
+            zap_texto += f"⏱️ *PRAZO DE ENTREGA:* {dias_uteis} dias úteis\n"
+            zap_texto += f"💰 *INVESTIMENTO TOTAL: {moeda(valor_final_cliente)}*\n\n"
+            zap_texto += "_Qualidade e compromisso com o alto padrão._"
             
-            # Saída segura em bytes
-            pdf_bytes = pdf.output(dest='S').encode('latin-1')
-            st.download_button("Clique para Baixar", pdf_bytes, "Orcamento_OT.pdf", "application/pdf")
-        "Limpeza de Caixa de Gordura": {"un": "un", "p": 220.0},
-        "Limpeza de Caixa d'água": {"un": "un", "p": 300.0},
-        "Hidrojateamento Técnico": {"un": "serv", "p": 500.0},
-        "Ponto de Hidráulica / Esgoto": {"un": "ponto", "p": 150.0},
-    },
-    "ELÉTRICA & PINTURA": {
-        "Ponto de Elétrica": {"un": "ponto", "p": 135.0},
-        "Instalação de Quadro Geral": {"un": "un", "p": 450.0},
-        "Pintura Simples (Rolo)": {"un": "m²", "p": 35.0},
-        "Pintura com Massa Corrida": {"un": "m²", "p": 70.0},
-        "Aplicação de Textura / Grafiato": {"un": "m²", "p": 45.0},
-    },
-    "COBERTURA": {
-        "Telhado Zinco / Telha": {"un": "m²", "p": 190.0},
-        "Instalação de Calhas": {"un": "m", "p": 50.0},
-        "Impermeabilização de Laje": {"un": "m²", "p": 65.0},
-    }
-}
+            st.text_area("Copie e cole no WhatsApp", value=zap_texto, height=350)
 
-# --- INTERFACE PRINCIPAL ---
-st.title("🏢 Painel Corporativo de Engenharia e Manutenção")
-st.markdown("---")
-
-# Múltiplos Monitores (Abas)
-tab1, tab2, tab3 = st.tabs(["📊 MONITOR DO PATRÃO", "📝 GERADOR DE ORÇAMENTO", "⚙️ AJUSTE DE TABELA"])
-
-# --- MONITOR 3: AJUSTE DE TABELA (Configuração) ---
-with tab3:
-    st.header("Configurações Globais da Empresa")
-    col_cfg1, col_cfg2 = st.columns(2)
-    with col_cfg1:
-        margem_global = st.slider("Margem de Lucro Desejada (%)", 0, 150, 30)
-        custo_km = st.number_input("Custo Operacional por KM (R$)", value=3.20)
-    with col_cfg2:
-        prod_diaria = st.number_input("Capacidade de Execução (m²/dia)", value=8.0)
-        dias_semana = st.selectbox("Dias de Trabalho por Semana", [5, 6, 7])
-
-# --- MONITOR 2: GERADOR DE ORÇAMENTO ---
-with tab2:
-    st.header("Novo Orçamento")
-    c1, c2 = st.columns(2)
-    cliente = c1.text_input("Nome Completo do Cliente / Empresa")
-    endereco = c2.text_input("Endereço da Obra")
-    distancia = st.number_input("Distância Total para Logística (KM)", min_value=0.0)
-
-    st.subheader("Seleção de Itens da Obra")
-    itens_selecionados = []
-    total_base_obra = 0.0
-    total_m2_obra = 0.0
-
-    for cat, servs in DB_SERVICOS.items():
-        with st.expander(f"📂 CATEGORIA: {cat}"):
-            for s_nome, s_info in servs.items():
-                col_s1, col_s2, col_s3 = st.columns([3, 1, 1])
-                col_s1.write(f"**{s_nome}**")
-                qtd = col_s2.number_input(f"Qtd ({s_info['un']})", min_value=0.0, key=f"inp_{s_nome}")
-                preco_manual = col_s3.number_input(f"Preço Base (R$)", value=s_info['p'], key=f"prc_{s_nome}")
-                
-                if qtd > 0:
-                    sub_base = qtd * preco_manual
-                    total_base_obra += sub_base
-                    if s_info['un'] == "m²": total_m2_obra += qtd
-                    itens_selecionados.append({"nome": s_nome, "qtd": qtd, "un": s_info['un'], "p_base": preco_manual})
-
-# --- MONITOR 1: MONITOR DO PATRÃO (RESULTADOS) ---
-with tab1:
-    if not itens_selecionados:
-        st.warning("Selecione serviços no 'Gerador de Orçamento' para ver a análise.")
-    else:
-        # Cálculos de Inteligência de Negócio
-        custo_logistica = distancia * custo_km
-        valor_com_margem = (total_base_obra + custo_logistica) * (1 + margem_global/100)
-        lucro_liquido = valor_com_margem - total_base_obra - custo_logistica
-        
-        # Tempo
-        dias_uteis = math.ceil(total_m2_obra / prod_diaria) if total_m2_obra > 0 else 1
-        data_final = datetime.now() + timedelta(days=math.ceil(dias_uteis * (7/dias_semana)))
-
-        st.header("Dashboard de Lucratividade")
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Faturamento Bruto", moeda(valor_com_margem))
-        m2.metric("Lucro Estimado", moeda(lucro_liquido), f"{margem_global}%")
-        m3.metric("Custo Logística", moeda(custo_logistica))
-        m4.metric("Prazo de Entrega", f"{dias_uteis} dias")
-
-        st.divider()
-        st.subheader("Visualização para o Cliente (O que ele recebe)")
-        
-        # Gerar o texto diluído
-        fator_diluicao = valor_com_margem / total_base_obra if total_base_obra > 0 else 1
-        
-        txt_zap = f"🏠 *PROPOSTA TÉCNICA - {cliente.upper()}*\n"
-        txt_zap += f"📍 *LOCAL:* {endereco}\n"
-        txt_zap += f"📅 *DATA:* {datetime.now().strftime('%d/%m/%Y')}\n"
-        txt_zap += "─"*20 + "\n"
-        
-        for item in itens_selecionados:
-            p_venda = item['p_base'] * fator_diluicao
-            txt_zap += f"🔹 *{item['nome']}*\n   {item['qtd']} {item['un']} | Unit: {moeda(p_venda)} | Total: {moeda(item['qtd'] * p_venda)}\n\n"
-        
-        txt_zap += "─"*20 + "\n"
-        txt_zap += f"⏱️ *PRAZO DE EXECUÇÃO:* {dias_uteis} dias úteis\n"
-        txt_zap += f"💰 *INVESTIMENTO TOTAL: {moeda(valor_com_margem)}*\n"
-        txt_zap += "─"*20 + "\n"
-        txt_zap += "⚠️ _Nota: Valores incluem mão de obra e equipamentos. Materiais básicos por conta do contratante._"
-
-        st.text_area("Texto para WhatsApp (Profissional e Diluído)", value=txt_zap, height=350)
-
-        if st.button("📄 Gerar PDF de Alta Qualidade"):
-            try:
+        with col_out2:
+            st.subheader("📄 Documento PDF")
+            if st.button("GERAR PROPOSTA PROFISSIONAL"):
                 pdf = FPDF()
                 pdf.add_page()
-                pdf.set_font("Helvetica", "B", 18)
-                pdf.cell(190, 15, "ORCAMENTO DE PRESTACAO DE SERVICOS", ln=True, align="C")
-                pdf.set_font("Helvetica", "", 11)
-                pdf.cell(190, 10, f"CLIENTE: {cliente} | DATA: {datetime.now().strftime('%d/%m/%Y')}", ln=True, align="C")
-                pdf.ln(10)
+                # Header Dark Simulado no PDF
+                pdf.set_fill_color(30, 30, 30)
+                pdf.rect(0, 0, 210, 35, 'F')
+                pdf.set_text_color(255, 255, 255)
+                pdf.set_font("Arial", 'B', 20)
+                pdf.cell(190, 15, "OT CONSTRUCOES", ln=True, align='C')
+                pdf.set_font("Arial", '', 10)
+                pdf.cell(190, 10, "PROPOSTA TECNICA DE PRESTACAO DE SERVICOS", ln=True, align='C')
                 
-                # Tabela no PDF
+                pdf.set_text_color(0, 0, 0)
+                pdf.ln(15)
+                pdf.set_font("Arial", 'B', 11)
+                pdf.cell(190, 10, f"CLIENTE: {nome_cliente.upper()}", ln=True)
+                pdf.cell(190, 10, f"LOCAL: {endereco.upper()}", ln=True)
+                pdf.cell(190, 10, f"DATA: {datetime.now().strftime('%d/%m/%Y')}", ln=True)
+                pdf.ln(5)
+                
+                # Tabela de Itens
                 pdf.set_fill_color(240, 240, 240)
-                pdf.set_font("Helvetica", "B", 10)
-                pdf.cell(100, 10, " DESCRICAO DO SERVICO", 1, 0, "L", True)
-                pdf.cell(30, 10, " QTD", 1, 0, "C", True)
-                pdf.cell(60, 10, " TOTAL ITEM", 1, 1, "C", True)
+                pdf.cell(110, 10, " DESCRICAO DO SERVICO", 1, 0, 'L', True)
+                pdf.cell(30, 10, " QTD", 1, 0, 'C', True)
+                pdf.cell(50, 10, " TOTAL ITEM", 1, 1, 'C', True)
                 
-                pdf.set_font("Helvetica", "", 10)
+                pdf.set_font("Arial", '', 10)
                 for item in itens_selecionados:
-                    p_venda = item['p_base'] * fator_diluicao
-                    pdf.cell(100, 8, f" {item['nome']}", 1)
-                    pdf.cell(30, 8, f" {item['qtd']} {item['un']}", 1, 0, "C")
-                    pdf.cell(60, 8, f" {moeda(item['qtd'] * p_venda)}", 1, 1, "R")
+                    p_venda = item['p_base'] * fator
+                    pdf.cell(110, 8, f" {item['nome']}", 1)
+                    pdf.cell(30, 8, f" {item['qtd']} {item['un']}", 1, 0, 'C')
+                    pdf.cell(50, 8, f" {moeda(item['qtd'] * p_venda)}", 1, 1, 'R')
                 
                 pdf.ln(10)
-                pdf.set_font("Helvetica", "B", 12)
-                pdf.cell(190, 10, f"VALOR TOTAL DO INVESTIMENTO: {moeda(valor_com_margem)}", ln=True, align="R")
-                pdf.set_font("Helvetica", "I", 10)
-                pdf.cell(190, 10, f"Prazo estimado de entrega: {dias_uteis} dias uteis.", ln=True, align="R")
-                
-                st.download_button("Baixar Proposta em PDF", pdf.output(dest='S').encode('latin-1', 'ignore'), f"Proposta_{cliente}.pdf", "application/pdf")
-            except Exception as e:
-                st.error(f"Erro ao processar PDF: {e}")
+                pdf.set_font("Arial", 'B', 12)
+                pdf.cell(190, 10, f"VALOR TOTAL DO INVESTIMENTO: {moeda(valor_final_cliente)}", ln=True, align='R')
+                pdf.set_font("Arial", 'I', 10)
+                pdf.cell(190, 10, f"Prazo estimado de execucao: {dias_uteis} dias uteis.", ln=True, align='R')
+
+                # Saída segura em bytes para evitar erro de download
+                pdf_output = pdf.output(dest='S').encode('latin-1', errors='replace')
+                st.download_button(
+                    label="⬇️ BAIXAR PDF AGORA",
+                    data=pdf_output,
+                    file_name=f"Orcamento_OT_{nome_cliente.replace(' ', '_')}.pdf",
+                    mime="application/pdf"
+                )
