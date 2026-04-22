@@ -3,12 +3,12 @@ from datetime import datetime
 from fpdf import FPDF
 
 # Configuração de Profissional
-st.set_page_config(page_title="Orçamento Completo de Obras", layout="wide")
+st.set_page_config(page_title="Orçamento Completo", layout="wide")
 
 def moeda(v):
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- LISTA COMPLETA: DA FUNDAÇÃO AO DESENTUPIMENTO ---
+# --- LISTA COMPLETA REVISADA ---
 SERVICOS = {
     "--- ESTRUTURA E BASE ---": {"un": "-", "p": 0.0},
     "Sapata / Fundação": {"un": "un", "p": 250.0},
@@ -33,110 +33,96 @@ SERVICOS = {
     "Instalação de Vaso / Pia": {"un": "un", "p": 180.0},
     
     "--- SERVIÇOS DE DESENTUPIDORA ---": {"un": "-", "p": 0.0},
-    "Desentupimento de Vaso Sanitário": {"un": "un", "p": 250.0},
-    "Desentupimento de Esgoto (Rede Principal)": {"un": "m", "p": 120.0},
-    "Desentupimento de Pia / Ralo": {"un": "un", "p": 150.0},
+    "Desentupimento de Vaso": {"un": "un", "p": 250.0},
+    "Desentupimento de Esgoto": {"un": "m", "p": 120.0},
+    "Desentupimento de Pia": {"un": "un", "p": 150.0},
     "Limpeza de Caixa de Gordura": {"un": "un", "p": 200.0},
     "Limpeza de Caixa d'água": {"un": "un", "p": 250.0},
-    "Hidrojateamento Simples": {"un": "serv", "p": 400.0},
     
     "--- PINTURA E TELHADO ---": {"un": "-", "p": 0.0},
     "Pintura Simples": {"un": "m²", "p": 35.0},
-    "Pintura com Emassamento": {"un": "m²", "p": 65.0},
+    "Pintura com Massa": {"un": "m²", "p": 65.0},
     "Telhado Zinco / Telha": {"un": "m²", "p": 185.0},
 }
 
 st.title("🏗️ Orçamento Completo: Obra & Desentupidora")
 
 # --- DADOS DO CLIENTE ---
-with st.container():
-    c1, c2 = st.columns(2)
-    nome_cliente = c1.text_input("Nome do Cliente")
-    local_obra = c2.text_input("Local do Serviço")
+c1, c2 = st.columns(2)
+nome_cliente = c1.text_input("Nome do Cliente", value="")
+local_obra = c2.text_input("Local do Serviço", value="")
 
 # --- FRETE E MARGEM ---
 st.divider()
-col_f1, col_f2, col_f3 = st.columns(3)
-distancia = col_f1.number_input("Distância (KM)", min_value=0.0, key="dist_km")
-valor_km = col_f2.number_input("R$ por KM (Gasolina/Tempo)", value=2.50, key="val_km")
-margem_lucro = col_f3.slider("Margem de Lucro Extra (%)", 0, 100, 0)
+f1, f2, f3 = st.columns(3)
+distancia = f1.number_input("Distância (KM)", min_value=0.0, step=1.0)
+valor_km = f2.number_input("R$ por KM", value=2.50)
+margem_lucro = f3.slider("Margem de Lucro (%)", 0, 100, 0)
 
 custo_viagem = distancia * valor_km
 
 # --- SELEÇÃO DE SERVIÇOS ---
-st.subheader("🛠️ Detalhamento dos Serviços")
+st.subheader("🛠️ Detalhamento")
 selecionados = []
 total_maodobra = 0.0
 
+# Usando um contador pra garantir que a key seja única
+idx = 0
 for nome, info in SERVICOS.items():
     if info["un"] == "-":
         st.markdown(f"#### {nome}")
         continue
         
     with st.expander(f"➕ {nome}"):
-        col_s1, col_s2 = st.columns(2)
-        quantidade = col_s1.number_input(f"Qtd ({info['un']})", min_value=0.0, key=f"q_{nome}")
-        preco_unit = col_s2.number_input(f"Preço Unitário R$", value=float(info['p']), key=f"p_{nome}")
+        sc1, sc2 = st.columns(2)
+        # Chaves (keys) dinâmicas pra não dar erro de duplicidade
+        quantidade = sc1.number_input(f"Qtd", min_value=0.0, key=f"q_{idx}")
+        preco_unit = sc2.number_input(f"R$ Unit.", value=float(info['p']), key=f"p_{idx}")
         
         if quantidade > 0:
             subtotal = quantidade * preco_unit
             total_maodobra += subtotal
             selecionados.append({"n": nome, "q": quantidade, "u": info['un'], "t": subtotal})
+    idx += 1
 
-# --- RESUMO FINANCEIRO ---
-st.divider()
+# --- CÁLCULOS ---
 valor_base = total_maodobra + custo_viagem
 total_final = valor_base * (1 + margem_lucro/100)
 
-res1, res2, res3 = st.columns(3)
-res1.metric("Mão de Obra / Serviços", moeda(total_maodobra))
-res2.metric("Deslocamento", moeda(custo_viagem))
-res3.metric("TOTAL FINAL", moeda(total_final))
+st.divider()
+st.header(f"TOTAL FINAL: {moeda(total_final)}")
 
 # --- SAÍDA ---
 if selecionados:
-    st.subheader("📱 WhatsApp e PDF")
-    
-    # Texto para Zap
-    texto_zap = f"*ORÇAMENTO DE SERVIÇOS - {nome_cliente.upper()}*\n📍 {local_obra}\n"
-    texto_zap += f"📅 {datetime.now().strftime('%d/%m/%Y')}\n"
-    texto_zap += "-"*20 + "\n"
+    # Texto Zap
+    zap = f"*ORÇAMENTO - {nome_cliente.upper()}*\n📍 {local_obra}\n"
     for s in selecionados:
-        texto_zap += f"✅ *{s['n']}*: {s['q']} {s['u']} = {moeda(s['t'])}\n"
-    texto_zap += "-"*20 + "\n"
-    if custo_viagem > 0: texto_zap += f"🚚 Viagem: {moeda(custo_viagem)}\n"
-    if margem_lucro > 0: texto_zap += f"📈 Margem Adicional: {margem_lucro}%\n"
-    texto_zap += f"💰 *VALOR TOTAL: {moeda(total_final)}*"
+        zap += f"✅ {s['n']}: {s['q']} {s['u']} = {moeda(s['t'])}\n"
+    zap += f"🚚 Viagem: {moeda(custo_viagem)}\n"
+    if margem_lucro > 0: zap += f"📈 Margem: {margem_lucro}%\n"
+    zap += f"💰 *TOTAL: {moeda(total_final)}*"
     
-    st.text_area("Copie para o WhatsApp:", value=texto_zap, height=250)
+    st.text_area("Copiar para WhatsApp", value=zap, height=200)
 
-    # Função PDF
-    if st.button("📥 Gerar PDF Profissional"):
+    # Botão PDF
+    if st.button("📥 Baixar PDF"):
         try:
             pdf = FPDF()
             pdf.add_page()
-            pdf.set_font("Arial", "B", 16)
-            pdf.cell(190, 10, "ORCAMENTO DE SERVICOS ESPECIALIZADOS", ln=True, align="C")
+            pdf.set_font("Helvetica", "B", 16)
+            pdf.cell(190, 10, "ORCAMENTO DE SERVICOS", ln=True, align="C")
+            pdf.set_font("Helvetica", "", 12)
             pdf.ln(10)
-            pdf.set_font("Arial", "", 12)
             pdf.cell(190, 8, f"Cliente: {nome_cliente}", ln=True)
-            pdf.cell(190, 8, f"Local: {local_obra}", ln=True)
             pdf.cell(190, 8, f"Data: {datetime.now().strftime('%d/%m/%Y')}", ln=True)
             pdf.ln(5)
-            pdf.cell(190, 0, "", "T", ln=True)
-            pdf.ln(5)
-            
             for s in selecionados:
                 pdf.cell(190, 8, f"- {s['n']} ({s['q']} {s['u']}): {moeda(s['t'])}", ln=True)
-            
             pdf.ln(5)
-            pdf.cell(190, 8, f"Logistica e Deslocamento: {moeda(custo_viagem)}", ln=True)
-            pdf.set_font("Arial", "B", 14)
-            pdf.ln(5)
-            pdf.cell(190, 10, f"TOTAL FINAL: {moeda(total_final)}", ln=True)
-            pdf.set_font("Arial", "I", 10)
-            pdf.ln(10)
-            pdf.multi_cell(190, 8, "Observacao: Mao de obra especializada. Material de consumo (se necessario) por conta do cliente.")
+            pdf.set_font("Helvetica", "B", 14)
+            pdf.cell(190, 10, f"TOTAL: {moeda(total_final)}", ln=True)
             
-            pdf_data = pdf.output(dest='S').encode('latin-1', 'ignore')
-            st.download_button(label="Clique para baixar o PDF", data=pdf_data, file_name=f"orc
+            pdf_bytes = pdf.output(dest='S').encode('latin-1', 'ignore')
+            st.download_button("Clique aqui para baixar", pdf_bytes, f"orcamento_{nome_cliente}.pdf", "application/pdf")
+        except:
+            st.error("Erro no PDF. Checou o requirements.txt?")
